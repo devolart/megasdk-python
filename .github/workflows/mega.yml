@@ -1,0 +1,46 @@
+name: Build and Push dist folder
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.10
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get install -y autoconf automake libtool
+        pip install wheel setuptools --upgrade
+
+    - name: Build SDK
+      run: |
+        git clone --depth=1 -b release/v4.8.0 https://github.com/meganz/sdk.git sdk
+        cd sdk
+        autoupdate -fIv
+        ./autogen.sh
+        ./configure CFLAGS='-fpermissive' CXXFLAGS='-fpermissive' CPPFLAGS='-fpermissive' CCFLAGS='-fpermissive' --disable-silent-rules --enable-python --with-sodium --disable-examples --with-python3
+        make -j$(nproc --all)
+
+    - name: Build wheel and install
+      run: |
+        cd sdk/bindings/python
+        python3 setup.py bdist_wheel
+        cd dist
+        pip install --no-cache-dir *.whl
+
+    - name: Push dist folder to root of repository
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add sdk/bindings/python/dist
+        git commit -m "Add dist folder"
+        git push
